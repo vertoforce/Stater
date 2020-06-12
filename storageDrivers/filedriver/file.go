@@ -25,6 +25,7 @@ func NewFileDriverFromFile(file *os.File) (*FileDriver, error) {
 	}
 	// If there are no tasks, make an empty file
 	if tasks, err := driver.LoadTasks(); err != nil || len(tasks) == 0 {
+		file.Truncate(0)
 		_, err := file.Write([]byte("[]"))
 		if err != nil {
 			return nil, err
