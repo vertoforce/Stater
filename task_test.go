@@ -55,7 +55,7 @@ func TestTask(t *testing.T) {
 
 	task := taskEngine.NewTask("MyTask", &stater.State{Fields: map[string]interface{}{"Count": float64(0)}}, "one")
 	// Start task and wait for it to finish
-	task.Start(context.Background(), fileDriver)
+	task.Start(context.Background())
 
 	// Check that the task did finish
 	if !gotAMessage {

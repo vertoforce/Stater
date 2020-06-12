@@ -22,8 +22,6 @@ type Task struct {
 	// Current State
 	State            *State
 	WorkFunctionName string
-	storageDriver    StorageDriver
-	messager         *Messager
 	lock             sync.Mutex
 	engine           *TaskEngine
 
@@ -50,7 +48,6 @@ func (e *TaskEngine) NewTask(ID string, startingState *State, workFunctionName s
 		ID:               ID,
 		State:            startingState,
 		WorkFunctionName: workFunctionName,
-		messager:         e.Messager,
 		lock:             sync.Mutex{},
 		engine:           e,
 	}
@@ -66,7 +63,7 @@ func (e *TaskEngine) NewTask(ID string, startingState *State, workFunctionName s
 //
 // If the task is started once it is already running, it will do nothing.
 // If the task is done, it will return an error
-func (t *Task) Start(ctx context.Context, storageDriver StorageDriver) error {
+func (t *Task) Start(ctx context.Context) error {
 	t.lock.Lock()
 	if t.Running {
 		t.lock.Unlock()
@@ -76,11 +73,11 @@ func (t *Task) Start(ctx context.Context, storageDriver StorageDriver) error {
 		t.lock.Unlock()
 		return ErrTaskDone
 	}
-	t.storageDriver = storageDriver
 	t.Running = true
 	t.lock.Unlock()
 	workFunction, ok := t.engine.workerFunctions[t.WorkFunctionName]
 	if !ok {
+		t.markDone()
 		return fmt.Errorf("worker function not found")
 	}
 
@@ -88,7 +85,7 @@ func (t *Task) Start(ctx context.Context, storageDriver StorageDriver) error {
 		workCtx, cancel := context.WithCancel(ctx)
 		t.ctx = workCtx
 		t.cancel = cancel
-		newState, err := workFunction(workCtx, t.State, t.messager)
+		newState, err := workFunction(workCtx, t.State, t.engine.Messager)
 		cancel()
 		if err != nil {
 			if !t.Running {
@@ -110,12 +107,12 @@ func (t *Task) Start(ctx context.Context, storageDriver StorageDriver) error {
 }
 
 func (t *Task) updateState(state *State) {
-	t.storageDriver.SaveTask(t)
+	t.engine.StorageDriver.SaveTask(t)
 }
 
 // markDone is called when the task is deemed done
 func (t *Task) markDone() {
-	t.messager.SendMessage(&Message{
+	t.engine.Messager.SendMessage(&Message{
 		Type:    DoneMessage,
 		Task:    t,
 		Message: "We finished",
@@ -123,7 +120,7 @@ func (t *Task) markDone() {
 	t.lock.Lock()
 	t.Running = false
 	t.Done = true
-	t.storageDriver.RemoveTask(t.ID)
+	t.engine.StorageDriver.RemoveTask(t.ID)
 	t.lock.Unlock()
 }
 

@@ -34,16 +34,16 @@ func NewTaskEngine(ctx context.Context, storageDriver StorageDriver, workerFunct
 		workerFunctions: workerFunctions,
 		Tasks:           tasks,
 		Messager:        messager,
+		StorageDriver:   storageDriver,
 	}
 
 	// Start each task
 	for _, task := range tasks {
 		// Set connections
 		task.engine = engine
-		task.messager = messager
 
 		go func(ctx context.Context, task *Task) {
-			task.Start(ctx, storageDriver)
+			task.Start(ctx)
 		}(ctx, task)
 	}
 
