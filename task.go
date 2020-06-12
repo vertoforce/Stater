@@ -14,7 +14,7 @@ var (
 
 // Task is some long running task that can be started, stopped, and resumed
 //
-// Note that the entire task structure must be serializable
+// Note that the entire task structure must be serializable, including the state
 type Task struct {
 	// Some way to uniquely identify this task
 	ID string
@@ -36,8 +36,8 @@ type Task struct {
 
 // IncrementalWorkFunction performs the smallest possible portion of work, returning the new state
 //
-// If the work function returns an error, but the state != nil, the new state will be used on the next call.
-// If the state is nil though, it will exist the task and mark it done.
+// If the work function returns an error, the task will finish and return the error
+// If the state is nil, the task will be done
 //
 // If the returned state is nil, the original state will be used on the next call
 type IncrementalWorkFunction func(ctx context.Context, state *State, messager *Messager) (*State, error)
@@ -57,12 +57,12 @@ func (e *TaskEngine) NewTask(ID string, startingState *State, workFunctionName s
 
 // Start will start performing the task as fast as possible.
 // It will keep calling the incremental work function.
-// It will not return until the task is done
-// After each run of the incremental function, it will store the state using the storage driver
+// It will not return until the task is done.
+// After each run of the incremental function, it will store the state using the storage driver.
 // Once the work function returned state and error are nil, the task will be marked done.
 //
 // If the task is started once it is already running, it will do nothing.
-// If the task is done, it will return an error
+// If the task is done, it will return an error.
 func (t *Task) Start(ctx context.Context) error {
 	t.lock.Lock()
 	if t.Running {
@@ -106,11 +106,15 @@ func (t *Task) Start(ctx context.Context) error {
 	return nil
 }
 
+// updateState stores the new state of the task
 func (t *Task) updateState(state *State) {
 	t.engine.StorageDriver.SaveTask(t)
 }
 
 // markDone is called when the task is deemed done
+//
+// It will set running=false, done=true, remove the task, and send a DoneMessage
+// to the engine messager
 func (t *Task) markDone() {
 	t.engine.Messager.SendMessage(&Message{
 		Type:    DoneMessage,
@@ -137,6 +141,8 @@ func (t *Task) Pause() {
 //
 // Note that this will likely leave a IncrementalWorkFunction partly done
 func (t *Task) PauseImmediately() {
+	t.lock.Lock()
 	t.Pause()
+	t.lock.Unlock()
 	t.cancel()
 }

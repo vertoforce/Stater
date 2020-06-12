@@ -13,6 +13,8 @@ func Example() {
 	fileDriver, _ := filedriver.NewFileDriver("state.json")
 
 	// Create your list of worker function
+	// We need to define this to the engine since we cannot serialize the function with the task
+	// We can only serialize the "name" of the worker function
 	workerFunctions := map[string]stater.IncrementalWorkFunction{
 		"example": func(ctx context.Context, state *stater.State, messager *stater.Messager) (*stater.State, error) {
 			// We use floats because numbers will always unmarshal to a float
