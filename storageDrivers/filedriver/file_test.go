@@ -30,7 +30,7 @@ func TestFile(t *testing.T) {
 	}
 
 	// Save a task
-	err = driver.SaveTask(stater.NewTask("Test", nil, nil, nil))
+	err = driver.SaveTask(&stater.Task{ID: "Test"})
 	if err != nil {
 		t.Error(err)
 		return

@@ -3,6 +3,7 @@ package stater
 import (
 	"context"
 	"fmt"
+	"sync"
 )
 
 // Errors
@@ -19,10 +20,12 @@ type Task struct {
 	ID string
 
 	// Current State
-	State         State
-	workFunction  IncrementalWorkFunction
-	storageDriver StorageDriver
-	messager      *Messager
+	State            *State
+	WorkFunctionName string
+	storageDriver    StorageDriver
+	messager         *Messager
+	lock             sync.Mutex
+	engine           *TaskEngine
 
 	// Current running work function context
 	ctx    context.Context
@@ -39,16 +42,20 @@ type Task struct {
 // If the state is nil though, it will exist the task and mark it done.
 //
 // If the returned state is nil, the original state will be used on the next call
-type IncrementalWorkFunction func(ctx context.Context, state State, messager *Messager) (State, error)
+type IncrementalWorkFunction func(ctx context.Context, state *State, messager *Messager) (*State, error)
 
 // NewTask Creates a new task that has some starting state, and an incredmental function
-func NewTask(ID string, startingState State, workFunction IncrementalWorkFunction, messager *Messager) *Task {
-	return &Task{
-		ID:           ID,
-		State:        startingState,
-		workFunction: workFunction,
-		messager:     messager,
+func (e *TaskEngine) NewTask(ID string, startingState *State, workFunctionName string) *Task {
+	t := &Task{
+		ID:               ID,
+		State:            startingState,
+		WorkFunctionName: workFunctionName,
+		messager:         e.Messager,
+		lock:             sync.Mutex{},
+		engine:           e,
 	}
+
+	return t
 }
 
 // Start will start performing the task as fast as possible.
@@ -60,20 +67,28 @@ func NewTask(ID string, startingState State, workFunction IncrementalWorkFunctio
 // If the task is started once it is already running, it will do nothing.
 // If the task is done, it will return an error
 func (t *Task) Start(ctx context.Context, storageDriver StorageDriver) error {
+	t.lock.Lock()
 	if t.Running {
+		t.lock.Unlock()
 		return nil
 	}
 	if t.Done {
+		t.lock.Unlock()
 		return ErrTaskDone
 	}
 	t.storageDriver = storageDriver
 	t.Running = true
+	t.lock.Unlock()
+	workFunction, ok := t.engine.workerFunctions[t.WorkFunctionName]
+	if !ok {
+		return fmt.Errorf("worker function not found")
+	}
 
 	for t.Running {
 		workCtx, cancel := context.WithCancel(ctx)
 		t.ctx = workCtx
 		t.cancel = cancel
-		newState, err := t.workFunction(workCtx, t.State, t.messager)
+		newState, err := workFunction(workCtx, t.State, t.messager)
 		cancel()
 		if err != nil {
 			if !t.Running {
@@ -94,7 +109,7 @@ func (t *Task) Start(ctx context.Context, storageDriver StorageDriver) error {
 	return nil
 }
 
-func (t *Task) updateState(state State) {
+func (t *Task) updateState(state *State) {
 	t.storageDriver.SaveTask(t)
 }
 
@@ -105,16 +120,20 @@ func (t *Task) markDone() {
 		Task:    t,
 		Message: "We finished",
 	})
+	t.lock.Lock()
 	t.Running = false
 	t.Done = true
 	t.storageDriver.RemoveTask(t.ID)
+	t.lock.Unlock()
 }
 
 // Pause the running task.  It will not resume until Resume() is called
 //
 // If the task is already paused this will do nothing
 func (t *Task) Pause() {
+	t.lock.Lock()
 	t.Running = false
+	t.lock.Unlock()
 }
 
 // PauseImmediately cancels the current working context to stop the work as quickly as possible.

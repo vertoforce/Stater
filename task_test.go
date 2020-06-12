@@ -18,7 +18,18 @@ func TestTask(t *testing.T) {
 	}
 
 	// Create a new task engine
-	tasks, messager, err := stater.NewTaskEngine(context.Background(), fileDriver)
+	workFunction := func(ctx context.Context, state *stater.State, messager *stater.Messager) (*stater.State, error) {
+		currentCount := state.Fields["Count"].(float64)
+		if currentCount == 5 {
+			return nil, nil
+		}
+		state.Fields["Count"] = currentCount + 1
+		return state, nil
+	}
+	workerFunctions := map[string]stater.IncrementalWorkFunction{
+		"one": workFunction,
+	}
+	taskEngine, err := stater.NewTaskEngine(context.Background(), fileDriver, workerFunctions)
 	if err != nil {
 		t.Error(err)
 		return
@@ -27,7 +38,7 @@ func TestTask(t *testing.T) {
 	// Create thread to listen for message
 	gotAMessage := false
 	go func() {
-		messageStream := messager.GetMessageStream()
+		messageStream := taskEngine.Messager.GetMessageStream()
 		for {
 			message := <-messageStream
 			if message.Task.ID == "MyTask" {
@@ -37,29 +48,51 @@ func TestTask(t *testing.T) {
 	}()
 
 	// Check to make sure we don't have any tasks
-	if len(tasks) > 0 {
+	if len(taskEngine.Tasks) > 0 {
 		t.Errorf("Too many tasks in storage")
 		return
 	}
 
-	workFunction := func(ctx context.Context, state stater.State, messager *stater.Messager) (stater.State, error) {
-		currentCount := state.GetState()["Count"].(int)
-		if currentCount == 5 {
-			return nil, nil
-		}
-		newCount := currentCount + 1
-		newState := state
-		newState.GetState()["Count"] = newCount
-		return newState, nil
-	}
-	task := stater.NewTask("MyTask", &stater.BasicState{Fields: map[string]interface{}{"Count": 0}}, workFunction, messager)
+	task := taskEngine.NewTask("MyTask", &stater.State{Fields: map[string]interface{}{"Count": float64(0)}}, "one")
+	// Start task and wait for it to finish
 	task.Start(context.Background(), fileDriver)
-
-	// Wait for task to finish
-	time.Sleep(time.Millisecond * 100)
 
 	// Check that the task did finish
 	if !gotAMessage {
 		t.Errorf("Task did not send completion message")
 	}
+
+	// Now try starting a task that was not done processing
+	task = taskEngine.NewTask("MyTask2", &stater.State{Fields: map[string]interface{}{"Count": 0}}, "one")
+	err = fileDriver.SaveTask(task)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	// Now we reload everything from the storage engine
+	taskEngine, err = stater.NewTaskEngine(context.Background(), fileDriver, workerFunctions)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Create thread to listen for message
+	gotAMessage = false
+	go func() {
+		messageStream := taskEngine.Messager.GetMessageStream()
+		for {
+			message := <-messageStream
+			if message.Task.ID == "MyTask2" {
+				gotAMessage = true
+			}
+		}
+	}()
+
+	// Wait for task to re-start and complete
+	time.Sleep(time.Millisecond * 500)
+
+	if !gotAMessage {
+		t.Error("Task did not re-start and complete")
+	}
+
 }
