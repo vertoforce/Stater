@@ -109,6 +109,7 @@ func (t *Task) Start(ctx context.Context) error {
 // updateState stores the new state of the task
 func (t *Task) updateState(state *State) {
 	t.engine.StorageDriver.SaveTask(t)
+	t.State = state
 }
 
 // markDone is called when the task is deemed done
