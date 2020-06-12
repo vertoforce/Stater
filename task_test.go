@@ -64,6 +64,8 @@ func TestTask(t *testing.T) {
 
 	// Now try starting a task that was not done processing
 	task = taskEngine.NewTask("MyTask2", &stater.State{Fields: map[string]interface{}{"Count": 0}}, "one")
+	// Do not start the task (it'll finish too fast), instead mark it as "running" so it's as if it died when running
+	task.Running = true
 	err = fileDriver.SaveTask(task)
 	if err != nil {
 		t.Error(err)

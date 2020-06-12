@@ -41,10 +41,13 @@ func NewTaskEngine(ctx context.Context, storageDriver StorageDriver, workerFunct
 	for _, task := range tasks {
 		// Set connections
 		task.engine = engine
-
-		go func(ctx context.Context, task *Task) {
-			task.Start(ctx)
-		}(ctx, task)
+		if task.Running {
+			// This task died running, set running to false then start it
+			task.Running = false
+			go func(ctx context.Context, task *Task) {
+				task.Start(ctx)
+			}(ctx, task)
+		}
 	}
 
 	return engine, nil
