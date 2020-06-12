@@ -6,7 +6,7 @@ import "context"
 type StorageDriver interface {
 	// Save or update a task
 	SaveTask(task *Task) error
-	RemoveTask(task *Task) error
+	RemoveTask(ID string) error
 	LoadTasks() ([]*Task, error)
 }
 

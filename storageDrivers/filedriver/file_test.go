@@ -49,4 +49,20 @@ func TestFile(t *testing.T) {
 	if tasks[0].ID != "Test" {
 		t.Errorf("Task did not save correctly")
 	}
+
+	// Remove the task
+	err = driver.RemoveTask(tasks[0].ID)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	tasks, err = driver.LoadTasks()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if len(tasks) > 0 {
+		t.Errorf("Was not expecting tasks")
+	}
 }

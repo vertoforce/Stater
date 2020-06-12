@@ -7,7 +7,8 @@ import (
 
 // Errors
 var (
-	ErrTaskDone = fmt.Errorf("task already done")
+	ErrTaskDone     = fmt.Errorf("task already done")
+	ErrTaskNotFound = fmt.Errorf("task not found")
 )
 
 // Task is some long running task that can be started, stopped, and resumed
@@ -106,7 +107,7 @@ func (t *Task) markDone() {
 	})
 	t.Running = false
 	t.Done = true
-	t.storageDriver.RemoveTask(t)
+	t.storageDriver.RemoveTask(t.ID)
 }
 
 // Pause the running task.  It will not resume until Resume() is called
