@@ -18,15 +18,15 @@ task := TaskEngine.NewTask(...)
 task.Start(...)
 ```
 
-That function will start a task that will run even on restarts.
+That function will start a task that will run (and resume across restarts).
 
-However to get there you must first
+To get there you must:
 
 1. Create some storage driver (where we will store the state)
 2. Define your work functions
 3. Create a task engine
 
-Each task is relatively painless, but is necessary to start the task off of the engine.
+Each step is relatively painless, but is necessary to start a task off of the engine.
 
 The [godoc](https://godoc.org/github.com/vertoforce/stater) has a full example of doing the above steps.
 
@@ -38,17 +38,19 @@ The storage driver is a way to store/load the state of running tasks.  You can c
 
 ### Define your work functions
 
-We define each work function as a map so that we can save the "name" of the work function for each task.  This is because after each work done by the task, we cannot save the work function to disk, we need to save a "reference/pointer" so we know what to run when the program starts again.
+A work function is the smallest amount of work possible towards the larger task.  At the end, the function returns a new "state" that the next call of the function will continue from.
 
-To define your work functions simple create a `map[string]stater.IncrementalWorkFunction`
+We define the work functions all at once to the task engine as a map.  This means the task only needs to know the "name" of it's work function.  We do this because we cannot save the work function to disk, we need to save a "reference/pointer" so we know what to run when the task starts again (especially across restarts).
+
+To define your work functions simple create a `map[string]stater.IncrementalWorkFunction{}`
 
 ### Create a task engine
 
 The task engine is the central location to store the [StorageDriver](https://godoc.org/github.com/vertoforce/Stater#StorageDriver) and the [Messager](https://godoc.org/github.com/vertoforce/Stater#Messager).
 
-It also starts all paused tasks if the program restarts.
+It also re-starts all stopped tasks if the program restarts.
 
-To create it simply use the StorageDriver and workFunctions you have defined above.
+To create it simply use the StorageDriver and workFunctions you have defined above (see godoc for details).
 
 ## Important notes
 
