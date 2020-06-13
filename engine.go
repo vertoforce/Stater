@@ -14,7 +14,6 @@ type StorageDriver interface {
 type TaskEngine struct {
 	Messager        *Messager
 	StorageDriver   StorageDriver
-	Tasks           []*Task
 	workerFunctions map[string]IncrementalWorkFunction
 }
 
@@ -32,7 +31,6 @@ func NewTaskEngine(ctx context.Context, storageDriver StorageDriver, workerFunct
 
 	engine := &TaskEngine{
 		workerFunctions: workerFunctions,
-		Tasks:           tasks,
 		Messager:        messager,
 		StorageDriver:   storageDriver,
 	}

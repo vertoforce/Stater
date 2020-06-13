@@ -48,7 +48,12 @@ func TestTask(t *testing.T) {
 	}()
 
 	// Check to make sure we don't have any tasks
-	if len(taskEngine.Tasks) > 0 {
+	tasks, err := taskEngine.StorageDriver.LoadTasks()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if len(tasks) > 0 {
 		t.Errorf("Too many tasks in storage")
 		return
 	}
@@ -72,7 +77,8 @@ func TestTask(t *testing.T) {
 		return
 	}
 
-	// Now we reload everything from the storage engine
+	// Now we reload everything from the storage engine in to a new task engine
+	// This will check if that task will start running again
 	taskEngine, err = stater.NewTaskEngine(context.Background(), fileDriver, workerFunctions)
 	if err != nil {
 		t.Error(err)
