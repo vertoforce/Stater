@@ -11,7 +11,7 @@ type FileDriver struct {
 
 // NewFileDriver Creates a new file driver using the provided filename
 func NewFileDriver(fileName string) (*FileDriver, error) {
-	file, err := os.OpenFile("state.json", os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
